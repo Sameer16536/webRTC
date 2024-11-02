@@ -20,19 +20,20 @@ const Sender = () => {
             alert('Socket not connected');
             return;
         }
-        socket.onmessage=async(event)=>{
-            const message = JSON.parse(event.data)
-            console.log(message)
-            if(message.type ==='create-answer'){
-                await peerConnection?.setRemoteDescription(message.sdp)
-            }
-            else if(message.type === 'ice-candidate'){
-                peerConnection?.addIceCandidate(message.candidate)
-            }
-        }
 
         const pc = new RTCPeerConnection()
         setPeerConnection(pc)
+
+        socket.onmessage=async(event)=>{
+            const message = JSON.parse(event.data)
+            console.log('Sender received:', message)
+            if(message.type ==='create-answer'){
+                await pc.setRemoteDescription(message.sdp)
+            }
+            else if(message.type === 'ice-candidate'){
+                pc.addIceCandidate(message.candidate)
+            }
+        }
 
         pc.onicecandidate = (event)=>{
             if(event.candidate){
@@ -48,26 +49,36 @@ const Sender = () => {
         getCameraStreamAndSend(pc)
     }
 
-    const getCameraStreamAndSend=(pc:RTCPeerConnection)=>{
-        navigator.mediaDevices.getUserMedia({video:true})
-            .then((stream)=>{
-                const video = document.createElement('video')
-                video.srcObject = stream
-                video.play()
-                //Change later to proper 
-                document.body.appendChild(video)
-                stream.getTracks().forEach((track)=>{
-                    pc?.addTrack(track)
-                })
+    const getCameraStreamAndSend = async (pc: RTCPeerConnection) => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: true,
+                audio: false // Add audio if needed
+            })
+            
+            // Add tracks to peer connection
+            stream.getTracks().forEach((track) => {
+                pc.addTrack(track, stream) // Make sure to pass the stream as second parameter
             })
 
+            // Optional: Show local video
+            const video = document.createElement('video')
+            video.srcObject = stream
+            video.autoplay = true
+            video.playsInline = true
+            video.muted = true // Mute local video
+            document.getElementById('local-video-container')?.appendChild(video)
+        } catch (err) {
+            console.error('Error accessing media devices:', err)
+        }
     }
-  return (
-    <div>
-        Sender
-        <button onClick={initiateConnection}>Send</button>
-    </div>
-  )
+
+    return (
+        <div>
+            <div id="local-video-container"></div>
+            <button onClick={initiateConnection}>Send</button>
+        </div>
+    )
 }
 
 export default Sender
